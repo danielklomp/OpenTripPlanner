@@ -56,16 +56,11 @@ public class GeometryIndex implements GeometryIndexService {
             LOG.error(message);
             throw new IllegalStateException(message);
         }
-        Map<ReversibleLineStringWrapper, StreetEdge> edges = Maps.newHashMap();
-        for (StreetVertex vertex : Iterables.filter(graph.getVertices(), StreetVertex.class)) {
-            for (StreetEdge e: Iterables.filter(vertex.getOutgoing(), StreetEdge.class)) {
-                LineString geom = e.getGeometry();
-                if (e.getPermission().allows(StreetTraversalPermission.PEDESTRIAN)) {
-                    edges.put(new ReversibleLineStringWrapper(geom), e);
-                }
-            }
-        }
-        // insert unique edges
+        Map<ReversibleLineStringWrapper, StreetEdge> edges = getReversibleLineStringWrapperStreetEdgeMap(graph);
+        insertUniqueEdges(edges);
+    }
+
+    private void insertUniqueEdges(Map<ReversibleLineStringWrapper, StreetEdge> edges) {
         pedestrianIndex = new STRtree();
         for (StreetEdge e : edges.values()) {
             LineString geom = e.getGeometry();
@@ -74,7 +69,24 @@ public class GeometryIndex implements GeometryIndexService {
         pedestrianIndex.build();
         LOG.debug("spatial index size: {}", pedestrianIndex.size());
     }
-    
+
+    private Map<ReversibleLineStringWrapper, StreetEdge> getReversibleLineStringWrapperStreetEdgeMap(Graph graph) {
+        Map<ReversibleLineStringWrapper, StreetEdge> edges = Maps.newHashMap();
+        for (StreetVertex vertex : Iterables.filter(graph.getVertices(), StreetVertex.class)) {
+            for (StreetEdge e: Iterables.filter(vertex.getOutgoing(), StreetEdge.class)) {
+                checkAndPutEdges(edges, e);
+            }
+        }
+        return edges;
+    }
+
+    private void checkAndPutEdges(Map<ReversibleLineStringWrapper, StreetEdge> edges, StreetEdge e) {
+        LineString geom = e.getGeometry();
+        if (e.getPermission().allows(StreetTraversalPermission.PEDESTRIAN)) {
+            edges.put(new ReversibleLineStringWrapper(geom), e);
+        }
+    }
+
     @SuppressWarnings("rawtypes")
     public List queryPedestrian(Envelope env) {
         return pedestrianIndex.query(env);
